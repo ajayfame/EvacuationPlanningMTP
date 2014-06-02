@@ -312,8 +312,8 @@ public class MainProgram {
 		shelterBasedCCRP = new ShelterBasedCCRP();
 		oneSourceOnePath = new OneSourceOnePath();
 		prefToLongerPaths = new PreferenceToLongerPaths();
-		String nodeFile = "/Users/MLGupta/Documents/node42.csv";
-		String edgeFile = "/Users/MLGupta/Documents/edge42.csv";
+		String nodeFile = "ProjectFiles/NodeFiles/node42.csv";
+		String edgeFile = "ProjectFiles/EdgeFiles/edge42.csv";
 		//System.out.println("ABC");
 		readNodeAndEdgeFiles(nodeFile, edgeFile, 1);
 		

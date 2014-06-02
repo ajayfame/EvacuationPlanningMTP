@@ -575,9 +575,265 @@ public class OneSourceOnePath {
 	{
 		for(int i=0;i<r.getRouteNodeList().size();i++)
 		{
-			
+			Node n = r.getRouteNodeList().get(i);
+			n.setTempNodeCapacityAtTime(null);
+			n.setTempNodeCapacityAtTime(new ArrayList<Integer>());
+			for(int j=0;j<n.getNodeCapacityAtTime().size();j++)
+			{
+				n.getTempNodeCapacityAtTime().add(n.getNodeCapacityAtTime().get(j));
+			}
+		}
+		for(int i=0;i<r.getRouteEdgeList().size();i++)
+		{
+			Edge e = r.getRouteEdgeList().get(i);
+			e.setTempEdgeCapacity(null);
+			e.setTempEdgeCapacity(new ArrayList<Integer>());
+			for(int j=0;j<e.getEdgeCapacity().size();j++)
+			{
+				e.getTempEdgeCapacity().add(e.getEdgeCapacity().get(j));
+			}
 		}
 	}
+	
+	public void reserveTempPath(Route route, int groupSize, int delay)
+	{
+		//PathUptoNode pathUptoNode = destination.getPathUptoPreviousNode();
+		System.out.println("Delay:" + delay);
+		int noOfNodes = route.getRouteNodeList().size()-1;
+		//System.out.println(noOfNodes + "mmmm");
+		for(int n=0; n<noOfNodes; n++)
+		{
+			Node tempNode = route.getRouteNodeList().get(n);
+			Edge tempEdge = route.getRouteEdgeList().get(n);
+			
+			int depart = route.getDepartureTime().get(n);
+			int edgeTravelTime = (int)Math.ceil(tempEdge.getTravelTime());
+			boolean sameFlowDirection = false;
+			
+			if(tempNode == tempEdge.getSource())
+				sameFlowDirection = true;
+			//Edge reservation
+			int newCapacity = 0;
+			
+			if(sameFlowDirection)
+			{
+				newCapacity = tempEdge.getEdgeCapacity().get(depart + delay) - groupSize;
+				tempEdge.getEdgeCapacity().set(depart + delay, newCapacity);
+			}
+			else
+			{
+				newCapacity = tempEdge.getEdgeCapacity().get(depart + delay + edgeTravelTime) - groupSize;
+				tempEdge.getEdgeCapacity().set(depart + delay + edgeTravelTime, newCapacity);
+			}
+			//For eg : Departure time at 15, travel time = 5, Hence slot 'time' should be 
+			//booked at time 15 + time(0,1,2,3,4) = (15,16,17,18,19)
+			
+			Node currNode = route.getRouteNodeList().get(n);
+			currNode.setNoOfPathsThroughThisNode(currNode.getNoOfPathsThroughThisNode() + 1);
+			currNode.setNoOfPeopleThroughThisNode(currNode.getNoOfPeopleThroughThisNode() + groupSize);
+			
+			int currNodeArrival = 0;
+			if(n!=0)
+				currNodeArrival = route.getArrivalTime().get(n);
+			
+			//System.out.print(currNode.getNodeName() + "**" + currNode.getTravelTime());
+			int departure = route.getDepartureTime().get(n);
+			currNode.setWaitingTimeAtThisNode(departure-currNodeArrival);
+			
+			for(int i=(currNodeArrival + delay);i<(departure + delay);i++)
+			{
+				System.out.println(currNodeArrival + " " + delay);
+				int newNodeCapacity = tempNode.getNodeCapacityAtTime().get(i) - groupSize;
+				tempNode.getNodeCapacityAtTime().set(i, newNodeCapacity);
+			}
+		}
+		
+		Node src = route.getRouteNodeList().get(0);
+		src.setCurrentOccupancy(src.getCurrentOccupancy() - groupSize);
+		
+		//Add path to pathList
+		this.pathList.add(route);
+		
+		Route.addTotalHops(route.getNodeList().size());
+		if(Route.getMaxHops() < route.getNodeList().size())
+			Route.setMaxHops(route.getNodeList().size());
+		
+		distinctRoutes.add(route.getRouteString());
+		this.pathId++;
+	}
+	
+	public int findMinimumTempCapacity(Route route)
+	{
+		int noOfNodes = route.getRouteNodeList().size()-1;
+		int minCapacity = Integer.MAX_VALUE;
+		//without destination
+		for(int n=0; n<noOfNodes; n++)
+		{
+			Node tempNode = route.getRouteNodeList().get(n);
+			Edge tempEdge = route.getRouteEdgeList().get(n);
+			int depart = route.getDepartureTime().get(n);
+			int edgeCapacity = Integer.MAX_VALUE;
+			int edgeTravelTime = (int)Math.ceil(tempEdge.getTravelTime());
+			int nodeCapacity = Integer.MAX_VALUE;
+			boolean sameFlowDirection = false;
+			if(tempNode==tempEdge.getSource())
+				sameFlowDirection = true;
+			
+			//For eg : Departure time at 15, travel time = 5, Hence check capacity booked at  
+			//slot 'time' for time 15 + time(0,1,2,3,4) = (15,16,17,18,19)
+			int newCapacity = 0;
+			if(sameFlowDirection)
+			{
+				newCapacity = tempEdge.getTempEdgeCapacity().get(depart);
+			}
+			else
+			{
+				newCapacity = tempEdge.getTempEdgeCapacity().get(depart + edgeTravelTime);
+			}
+			
+			if(newCapacity < edgeCapacity)
+			{
+				edgeCapacity = newCapacity;
+			}
+			if(n != (noOfNodes - 1))
+			{
+				tempNode = route.getRouteNodeList().get(n+1);
+				int arrival = (int)Math.ceil(tempNode.getTravelTime());
+				nodeCapacity = tempNode.getNodeCapacityAtTime().get(arrival);
+			}
+			if(edgeCapacity < minCapacity && edgeCapacity <= nodeCapacity)
+			{
+				minCapacity = edgeCapacity;
+			}
+			else if(nodeCapacity < minCapacity && nodeCapacity < edgeCapacity)
+			{
+				minCapacity = nodeCapacity;
+			}
+		}
+		if(route.getRouteNodeList().get(0).getCurrentOccupancy() < minCapacity)
+			minCapacity = route.getRouteNodeList().get(0).getCurrentOccupancy();
+		route.setGroupSize(minCapacity);
+		return minCapacity;
+	}
+	
+	public void shortestPathAlongRoute(Route route)
+	{
+		Route newRoute = new Route();
+		newRoute.getArrivalTime().add(0);
+		int capacity = route.getRouteNodeList().get(0).getCurrentOccupancy();
+		
+		for(int t=0;t<route.getRouteEdgeList().size();t++)
+		{
+			Node start = route.getRouteNodeList().get(t);
+			Node next = route.getRouteNodeList().get(t+1);
+			Edge edge = route.getRouteEdgeList().get(t);
+			double departureTimeFromU=0;
+			
+			if(t!=0)
+			{
+				if(edge.getSource() == start)
+					departureTimeFromU = start.getTravelTime();
+				else
+					departureTimeFromU = start.getTravelTime() + edge.getTravelTime(); 
+					/*since we will reach source after edge travel time , it should not be filled at that time
+					
+					*  S------5--------T
+					*  Here if we are going to move from T to S , we are going to reach S after 5 secs
+					*  Hence the block is also happening after 5 secs
+					*  It is not possible that the same edge is used in both directions
+					*  We are travelling from start to next but we will always imitate 
+					*  that we are going from next to start
+					*/
+			}
+			else
+			{
+				if(edge.getSource() == start)
+					departureTimeFromU = 0;
+				else
+					departureTimeFromU = edge.getTravelTime();
+			}
+			
+			double timeInstancesToAdd = departureTimeFromU - edge.getTempEdgeCapacity().size() + 2;
+		
+			for(int i = 0; i < timeInstancesToAdd; i++)
+				edge.addTempEdgeCapacity();
+			
+			//while the capacity in first section of this edge is not available
+			//we will wait here only
+			int delay = 0;
+			while(edge.getTempEdgeCapacity().get((int)Math.ceil(departureTimeFromU)) <= 0)
+			{
+				delay++;
+				departureTimeFromU++;
+				if (edge.getTempEdgeCapacity().size() <= departureTimeFromU)
+					edge.addTempEdgeCapacity();
+			}
+
+				//Adding Time instances for u
+			timeInstancesToAdd = start.getTravelTime() + delay - 
+					start.getTempNodeCapacityAtTime().size() + 1;
+			for(int i = 0; i < timeInstancesToAdd; i++)
+				start.getTempNodeCapacityAtTime().add(start.getMaxCapacity()-start.getCurrentOccupancy());
+			
+			double distanceToVThroughU = start.getTravelTime() + delay + edge.getTravelTime();
+
+			/* Time instances to add to far vertex v
+			 * We add at least that many time instances as the travel time 
+			 * to node v
+			*/
+			timeInstancesToAdd = distanceToVThroughU - next.getTempNodeCapacityAtTime().size() + 2;
+
+			for(int i = 0; i < timeInstancesToAdd; i++)
+				next.getTempNodeCapacityAtTime().add(next.getMaxCapacity()-next.getCurrentOccupancy());
+
+			//Capacity should be available at both the edge and at the vertex 
+			while((next.getTempNodeCapacityAtTime().get((int)Math.ceil(distanceToVThroughU)) <= 0)
+					|| edge.getTempEdgeCapacity().get((int)Math.ceil(departureTimeFromU)) <= 0)
+			{
+				delay++;
+				distanceToVThroughU++;
+				departureTimeFromU++;
+				//Add time instance to node v
+				next.getTempNodeCapacityAtTime().add(next.getMaxCapacity()-next.getCurrentOccupancy());
+				start.getTempNodeCapacityAtTime().add(start.getMaxCapacity()-start.getCurrentOccupancy());
+				//System.out.println(v.getNodeName() + "--" + v.getMaxCapacity());
+				//Add time instances to edge uv
+				while(edge.getTempEdgeCapacity().size() <=
+						(departureTimeFromU + 1))
+				{
+					edge.addTempEdgeCapacity();
+				}
+			}
+			next.setTravelTime(distanceToVThroughU);
+			newRoute.getRouteEdgeList().add(edge);
+			newRoute.getRouteNodeList().add(start);
+			
+			int depart = (int)Math.ceil(departureTimeFromU);
+			int arrivalAtNext = (int)Math.ceil(distanceToVThroughU);
+			newRoute.getDepartureTime().add(depart);
+			newRoute.getArrivalTime().add(arrivalAtNext);
+			
+			int newCapacity = 0;
+			if(edge.getSource() == start)
+			{
+				newCapacity = edge.getTempEdgeCapacity().get(depart);
+			}
+			else
+			{
+				newCapacity = edge.getTempEdgeCapacity().get(depart + (int)edge.getTravelTime());
+			}
+			if(newCapacity < capacity)
+				capacity = newCapacity;
+			
+			newCapacity = next.getTempNodeCapacityAtTime().get(arrivalAtNext);
+			if(newCapacity < capacity)
+				capacity = newCapacity;				
+		}
+		
+		
+	}
+	
+	
 	public Route shortestPath(Node src)
 	{
 		//System.out.println(src.getNodeName());

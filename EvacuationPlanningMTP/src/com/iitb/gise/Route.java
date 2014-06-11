@@ -135,7 +135,7 @@ public class Route implements Comparable<Route>{
 	public String getRouteString() {
 		String travelPlan = "";
 		int index;
-		for(index = 0; index < (nodeList.size() - 2); index++)
+		for(index = 0; index < (nodeList.size() - 1); index++)
 		{
 			travelPlan += this.getNodeList().get(index) + "---";
 		}

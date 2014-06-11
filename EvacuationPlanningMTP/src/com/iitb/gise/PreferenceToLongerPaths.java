@@ -101,7 +101,11 @@ public class PreferenceToLongerPaths {
 		node.setScanned(false);
 		node.setChildList(null);
 		if(nodeType == Node.DESTINATION)
+		{
+			node.setInitialOccupancy(0);
+			node.setCurrentOccupancy(0);
 			node.setMaxCapacity(Integer.MAX_VALUE);
+		}
 		if(nodeType == Node.SOURCE)
 		{
 			node.setTravelTime(0);
@@ -110,7 +114,7 @@ public class PreferenceToLongerPaths {
 		else
 			node.setTravelTime(Double.MAX_VALUE);
 		ArrayList<Integer> nodeCapacityAtTime = new ArrayList<Integer>();
-		nodeCapacityAtTime.add(node.getMaxCapacity());
+		nodeCapacityAtTime.add(node.getMaxCapacity()-node.getInitialOccupancy());
 		node.setNodeCapacityAtTime(nodeCapacityAtTime);
 		this.getGraph().addNode(node);
 	}
@@ -132,7 +136,11 @@ public class PreferenceToLongerPaths {
 		node.setScanned(false);
 		node.setChildList(null);
 		if(nodeType == Node.DESTINATION)
+		{
+			node.setInitialOccupancy(0);
+			node.setCurrentOccupancy(0);
 			node.setMaxCapacity(Integer.MAX_VALUE);
+		}
 		if(nodeType == Node.SOURCE)
 		{
 			node.setTravelTime(0);
@@ -141,7 +149,7 @@ public class PreferenceToLongerPaths {
 		else
 			node.setTravelTime(Double.MAX_VALUE);
 		ArrayList<Integer> nodeCapacityAtTime = new ArrayList<Integer>();
-		nodeCapacityAtTime.add(node.getMaxCapacity());
+		nodeCapacityAtTime.add(node.getMaxCapacity() - node.getInitialOccupancy());
 		node.setNodeCapacityAtTime(nodeCapacityAtTime);
 		this.getGraph().addNode(node);
 	}
@@ -268,7 +276,10 @@ public class PreferenceToLongerPaths {
 			Node src = srcList.get(i);
 			totalEvacuees += src.getInitialOccupancy();
 			clearNodeData(src);
+			//System.out.println("aaa");
 			Route r = shortestPath(src);
+			//System.out.println("aaa");
+			//System.out.println(r.getRouteString());
 			preRQ.add(r);
 		}
 		RQ.add(preRQ.poll());
@@ -459,19 +470,33 @@ public class PreferenceToLongerPaths {
 		if(Route.getMaxLength() < route.getRouteTravelTime())
 			Route.setMaxLength(route.getRouteTravelTime());
 		distinctRoutes.add(route.getRouteString());
+		//System.out.println(route.getRouteString());
 		this.pathId++;
 	}
 	
 	public int findMinimumCapacity(Route route)
 	{
 		int noOfNodes = route.getRouteNodeList().size()-1;
-		int minCapacity = Integer.MAX_VALUE;
+		int minCapacity = route.getRouteNodeList().get(0).getCurrentOccupancy();
 		//without destination
 		for(int n=0; n<noOfNodes; n++)
 		{
 			Node tempNode = route.getRouteNodeList().get(n);
+			if(tempNode.getNodeName().equals("n483"))
+				System.out.println("gggg");
+			
 			Edge tempEdge = route.getRouteEdgeList().get(n);
+			int sourceArrival = route.getArrivalTime().get(n);
 			int depart = route.getDepartureTime().get(n);
+			int minSourceCap = Integer.MAX_VALUE;
+			for(int i=sourceArrival;i<=depart;i++)
+			{
+				int v = tempNode.getNodeCapacityAtTime().get(i);
+				if(minSourceCap > v)
+				{
+					minSourceCap = v;
+				}
+			}
 			int edgeCapacity = Integer.MAX_VALUE;
 			int edgeTravelTime = (int)Math.ceil(tempEdge.getTravelTime());
 			int nodeCapacity = Integer.MAX_VALUE;
@@ -498,14 +523,18 @@ public class PreferenceToLongerPaths {
 			if(n != (noOfNodes - 1))
 			{
 				tempNode = route.getRouteNodeList().get(n+1);
-				int arrival = (int)Math.ceil(tempNode.getTravelTime());
+				int arrival = route.getArrivalTime().get(n+1);
 				nodeCapacity = tempNode.getNodeCapacityAtTime().get(arrival);
 			}
-			if(edgeCapacity < minCapacity && edgeCapacity <= nodeCapacity)
+			if(minSourceCap < minCapacity)
+			{
+				minCapacity = minSourceCap;
+			}
+			if(edgeCapacity < minCapacity)
 			{
 				minCapacity = edgeCapacity;
 			}
-			else if(nodeCapacity < minCapacity && nodeCapacity < edgeCapacity)
+			else if(nodeCapacity < minCapacity)
 			{
 				minCapacity = nodeCapacity;
 			}
@@ -567,8 +596,10 @@ public class PreferenceToLongerPaths {
 					v = edge.getTarget();
 				else
 					v = edge.getSource();
-				
+				//System.out.println("ffff");
 				simpleDijkstra(u, v, edge, priorityQueue);
+				//System.out.println("gggg");
+
 				u.setScanned(true);
 			}
 			u = priorityQueue.poll();
@@ -590,6 +621,9 @@ public class PreferenceToLongerPaths {
 		 * We add at least that many time instances as the travel time 
 		 * of node u
 		*/
+		
+		if(u.getNodeName().equals("n483") || v.getNodeName().equals("n483") )
+			System.out.print("");
 
 		double timeInstancesToAdd = departureTimeFromU - edge.getEdgeCapacity().size() + 2;
 
@@ -608,11 +642,14 @@ public class PreferenceToLongerPaths {
 				edge.addEdgeCapacity();
 		}
 
+		//System.out.println("gggg");
 		//Adding Time instances for u
 		timeInstancesToAdd = u.getTravelTime() + delay - 
 				u.getNodeCapacityAtTime().size() + 1;
+		
+			
 		for(int i = 0; i < timeInstancesToAdd; i++)
-			u.getNodeCapacityAtTime().add(u.getMaxCapacity());
+			u.getNodeCapacityAtTime().add(u.getMaxCapacity()-u.getCurrentOccupancy());
 		
 		double distanceToVThroughU = u.getTravelTime() + delay + edge.getTravelTime();
 
@@ -622,8 +659,10 @@ public class PreferenceToLongerPaths {
 		*/
 		timeInstancesToAdd = distanceToVThroughU - v.getNodeCapacityAtTime().size() + 2;
 
+		//System.out.println("hhhh");
+		
 		for(int i = 0; i < timeInstancesToAdd; i++)
-			v.getNodeCapacityAtTime().add(v.getMaxCapacity());
+			v.getNodeCapacityAtTime().add(v.getMaxCapacity()-v.getCurrentOccupancy());
 
 		//Capacity should be available at both the edge and at the vertex 
 		while((v.getNodeCapacityAtTime().get((int)Math.ceil(distanceToVThroughU)) <= 0)
@@ -632,17 +671,25 @@ public class PreferenceToLongerPaths {
 			delay++;
 			distanceToVThroughU++;
 			departureTimeFromU++;
+			
+			
 			//Add time instance to node v
-			v.getNodeCapacityAtTime().add(v.getMaxCapacity());
-			u.getNodeCapacityAtTime().add(u.getMaxCapacity());
+			v.getNodeCapacityAtTime().add(v.getMaxCapacity()-v.getCurrentOccupancy());
+			u.getNodeCapacityAtTime().add(u.getMaxCapacity()-u.getCurrentOccupancy());
 			//Add time instances to edge uv
-			while(edge.getEdgeCapacity().size() <=
+			if(u.getNodeName().equals("n483") || v.getNodeName().equals("n483") )
+				System.out.println("ffff");
+			System.out.println(distanceToVThroughU + " " + v.getNodeCapacityAtTime().get((int)Math.ceil(distanceToVThroughU)));
+			if(v.getNodeCapacityAtTime().get((int)Math.ceil(distanceToVThroughU)) < 0)
+				System.out.println(v.getNodeName());
+		 	while(edge.getEdgeCapacity().size() <=
 					(departureTimeFromU + 1))
 			{
 				edge.addEdgeCapacity();
 			}
 		}
 
+		//System.out.println("iiii");
 		if(distanceToVThroughU < v.getTravelTime())
 		{
 
@@ -680,7 +727,146 @@ public class PreferenceToLongerPaths {
 			for(int i = 0; i < timeInstancesToAdd; i++)
 				edge.addEdgeCapacity();
 		}
+		//System.out.println("jjjj ");
 	}
+	
+	
+	public void simpleDijkstra1(Node u, Node v, Edge edge, PriorityQueue<Node> priorityQueue)
+	{
+		//u is edge source and v is edge target
+		
+		int departureTimeFromU =(int)Math.ceil(u.getTravelTime());
+
+		//We will check whether there is any flow coming from other side of edge. hence we add edge.getTravelTime()
+		double timeInstancesToAdd = departureTimeFromU - edge.getEdgeCapacity().size() + edge.getTravelTime() + 2;
+		
+		for(int i = 0; i < timeInstancesToAdd; i++)
+			edge.addEdgeCapacity();
+		
+		//while the capacity in first section of this edge is not available
+		//we will wait here only
+		int delay = 0;
+		boolean x = true, y=true;
+		while(true)
+		{
+			x = false; 
+			while(edge.getEdgeCapacity().get(departureTimeFromU) <= 0)
+			{
+				x = true;
+				delay++;
+				departureTimeFromU++;
+				if (edge.getEdgeCapacity().size() <= (departureTimeFromU + edge.getTravelTime()))
+					edge.addEdgeCapacity();
+			}
+			int i=departureTimeFromU + 1 - (int)edge.getTravelTime();
+			if(i<0)
+				i=0;
+			
+			y=false;
+			for(; i < (departureTimeFromU + edge.getTravelTime()); i++)
+			{
+				if(edge.getEdgeCapacity().get(i) < edge.getMaxIntakeCapacity())
+				{
+					//There is flow in opposite direction
+					y=true;
+					delay++;
+					departureTimeFromU++;
+					if (edge.getEdgeCapacity().size() <= (departureTimeFromU + edge.getTravelTime()))
+						edge.addEdgeCapacity();
+				}
+			}
+			if(!x && !y)
+				break;
+		}
+		//System.out.println("gggg");
+		//Adding Time instances for u
+		timeInstancesToAdd = u.getTravelTime() + delay - 
+				u.getNodeCapacityAtTime().size() + 1;
+		
+			
+		for(int i = 0; i < timeInstancesToAdd; i++)
+			u.getNodeCapacityAtTime().add(u.getMaxCapacity()-u.getCurrentOccupancy());
+		
+		double distanceToVThroughU = u.getTravelTime() + delay + edge.getTravelTime();
+
+		/* Time instances to add to far vertex v
+		 * We add at least that many time instances as the travel time 
+		 * to node v
+		*/
+		timeInstancesToAdd = distanceToVThroughU - v.getNodeCapacityAtTime().size() + 2;
+
+		//System.out.println("hhhh");
+		
+		for(int i = 0; i < timeInstancesToAdd; i++)
+			v.getNodeCapacityAtTime().add(v.getMaxCapacity()-v.getCurrentOccupancy());
+
+		//I will reach u only if I have capacity, hence no need to check u
+		//Capacity should be available at both the edge and at the vertex 
+		while((v.getNodeCapacityAtTime().get((int)Math.ceil(distanceToVThroughU)) <= 0)
+				|| edge.getEdgeCapacity().get((int)Math.ceil(departureTimeFromU)) <= 0)
+		{
+			delay++;
+			distanceToVThroughU++;
+			departureTimeFromU++;
+			
+			
+			//Add time instance to node v
+			v.getNodeCapacityAtTime().add(v.getMaxCapacity()-v.getCurrentOccupancy());
+			u.getNodeCapacityAtTime().add(u.getMaxCapacity()-u.getCurrentOccupancy());
+			//Add time instances to edge uv
+			if(u.getNodeName().equals("n483") || v.getNodeName().equals("n483") )
+				System.out.println("ffff");
+			System.out.println(distanceToVThroughU + " " + v.getNodeCapacityAtTime().get((int)Math.ceil(distanceToVThroughU)));
+			if(v.getNodeCapacityAtTime().get((int)Math.ceil(distanceToVThroughU)) < 0)
+				System.out.println(v.getNodeName());
+		 	while(edge.getEdgeCapacity().size() <=
+					(departureTimeFromU + 1))
+			{
+				edge.addEdgeCapacity();
+			}
+		}
+
+		//System.out.println("iiii");
+		if(distanceToVThroughU < v.getTravelTime())
+		{
+
+			if(v.getParent() != null)
+			{
+				//v has Parent
+				v.getParent().removeChild(v);
+			}
+			v.setParent(u);
+			u.addChild(v);
+
+			PathUptoNode pathUptoPreviousNode = null;
+			if(u.getPathUptoPreviousNode() == null)
+			{
+				//u is source node
+				pathUptoPreviousNode = new PathUptoNode();
+			}
+			else
+			{
+				pathUptoPreviousNode = new PathUptoNode(u.getPathUptoPreviousNode());
+			}
+			pathUptoPreviousNode.add(u, edge, (int)Math.ceil(u.getTravelTime() + delay));
+			v.setPathUptoPreviousNode(pathUptoPreviousNode);
+			v.setTravelTime(distanceToVThroughU);
+			if(priorityQueue.contains(v))
+				priorityQueue.remove(v);
+			priorityQueue.add(v);
+			/* Time instances to add to an edge
+			 * We add at least that many time instances as the travel time 
+			 * of node v at end
+			*/
+			timeInstancesToAdd = distanceToVThroughU - 
+					edge.getEdgeCapacity().size() + 2;
+
+			for(int i = 0; i < timeInstancesToAdd; i++)
+				edge.addEdgeCapacity();
+		}
+		//System.out.println("jjjj ");
+	}
+	
 	
 	public Route findRoute(Node destination)
 	{
